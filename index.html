@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ludvigs lykkehjul</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 30%, #2b3a8c, #121736 70%);
+    font-family: "Trebuchet MS", "Comic Sans MS", system-ui, sans-serif;
+    color: #fff; overflow: hidden; user-select: none;
+  }
+  h1 { font-size: clamp(28px, 6vw, 54px); margin-bottom: 10px; letter-spacing: 1px;
+       text-shadow: 0 4px 0 #e0457b, 0 8px 18px rgba(0,0,0,.4); }
+  .scene { position: relative; width: min(88vw, 520px); }
+  svg { width: 100%; height: auto; display: block; overflow: visible; }
+  #wheel { transform-origin: 260px 260px; cursor: pointer; }
+  .btn {
+    margin-top: 14px; font: inherit; font-size: 24px; font-weight: bold;
+    padding: 12px 40px; border: none; border-radius: 999px; cursor: pointer;
+    background: #ffcf2e; color: #3a2400; box-shadow: 0 6px 0 #c99500;
+  }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #c99500; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  #result { height: 54px; margin-top: 12px; font-size: clamp(22px, 5vw, 38px); font-weight: bold; }
+  .pop { animation: pop .5s ease-out; }
+  @keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+</style>
+</head>
+<body>
+<h1>Ludvigs lykkehjul</h1>
+<div class="scene">
+  <svg viewBox="0 0 520 760" aria-label="Lykkehjul">
+    <!-- A-stativ som i tegningen -->
+    <g stroke="#8a5a2b" stroke-width="16" stroke-linecap="round" fill="none">
+      <line x1="260" y1="492" x2="120" y2="745"/>
+      <line x1="260" y1="492" x2="400" y2="745"/>
+      <line x1="178" y1="640" x2="342" y2="640"/>
+    </g>
+    <circle cx="260" cy="492" r="12" fill="#6b4220"/>
+    <!-- Hjulet -->
+    <g id="wheel"></g>
+    <!-- Stort hull i midten -->
+    <circle cx="260" cy="260" r="88" fill="#1c2452" stroke="#c99500" stroke-width="8"/>
+    <circle cx="260" cy="260" r="80" fill="none" stroke="#ffffff33" stroke-width="3"/>
+    <!-- Pil -->
+    <polygon points="238,0 282,0 260,42" fill="#fff" stroke="#e0457b" stroke-width="5" stroke-linejoin="round"/>
+  </svg>
+</div>
+<button class="btn" id="spin">Snurr!</button>
+<div id="result"></div>
+
+<script>
+const N = 14, CX = 260, CY = 260, R = 240;
+const colors = ["#ff5d73","#ffb238","#ffe14d","#7ee081","#3ec6e0","#5b8cff","#b36bff",
+                "#ff7bd5","#ff8a3d","#2fd3a6","#f9f871","#8fd3ff","#ff6b9e","#a3e635"];
+const wheel = document.getElementById("wheel");
+const ns = "http://www.w3.org/2000/svg";
+const el = (tag, attrs) => { const e = document.createElementNS(ns, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+const step = 360 / N;
+const OFF = 180; // tallet 1 står nederst
+const pt = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [CX + r * Math.cos(a), CY + r * Math.sin(a)]; };
+
+// Ytterkant
+wheel.appendChild(el("circle", { cx: CX, cy: CY, r: R + 12, fill: "#ffcf2e", stroke: "#c99500", "stroke-width": 4 }));
+
+for (let i = 0; i < N; i++) {
+  const a0 = OFF + i * step - step / 2, a1 = a0 + step;
+  const [x0, y0] = pt(a0, R), [x1, y1] = pt(a1, R);
+  wheel.appendChild(el("path", {
+    d: `M${CX},${CY} L${x0},${y0} A${R},${R} 0 0 1 ${x1},${y1} Z`,
+    fill: i % 2 ? "#ffffff" : "#f1f1fb", stroke: "#c9c9de", "stroke-width": 2
+  }));
+  // Morsom fargerute rundt tallet
+  const [tx, ty] = pt(OFF + i * step, R * 0.71);
+  const g = el("g", { transform: `translate(${tx},${ty}) rotate(${OFF + i * step})` });
+  g.appendChild(el("rect", { x: -27, y: -30, width: 54, height: 60, rx: 14,
+    fill: colors[i], stroke: "#ffffff", "stroke-width": 4, transform: `rotate(${i % 2 ? 6 : -6})` }));
+  const t = el("text", { x: 0, y: 1, "text-anchor": "middle", "dominant-baseline": "central",
+    "font-size": 32, "font-weight": "bold", fill: "#222", "font-family": "inherit" });
+  t.textContent = i + 1;
+  g.appendChild(t);
+  wheel.appendChild(g);
+  // Pinner på kanten
+  const [px, py] = pt(a0, R + 4);
+  wheel.appendChild(el("circle", { cx: px, cy: py, r: 6, fill: "#fff", stroke: "#c99500", "stroke-width": 2 }));
+}
+
+let angle = 0, spinning = false, audio;
+const btn = document.getElementById("spin"), result = document.getElementById("result");
+
+function tick() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), gn = audio.createGain();
+    o.frequency.value = 900; gn.gain.setValueAtTime(0.08, audio.currentTime);
+    gn.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.04);
+    o.connect(gn).connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.05);
+  } catch (e) {}
+}
+
+function spin() {
+  if (spinning) return;
+  spinning = true; btn.disabled = true; result.textContent = "";
+  const winner = Math.floor(Math.random() * N);
+  const jitter = (Math.random() - 0.5) * step * 0.7;
+  const target = 360 * (5 + Math.floor(Math.random() * 3)) - winner * step - OFF + jitter;
+  const start = angle, end = angle - (((angle % 360) + 360) % 360) + target;
+  const dur = 5000 + Math.random() * 1500, t0 = performance.now();
+  let lastSeg = Math.floor((start + step / 2) / step);
+  function frame(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const ease = 1 - Math.pow(1 - p, 4);
+    angle = start + (end - start) * ease;
+    wheel.setAttribute("transform", `rotate(${angle} ${CX} ${CY})`);
+    const seg = Math.floor((angle + step / 2) / step);
+    if (seg !== lastSeg) { lastSeg = seg; tick(); }
+    if (p < 1) requestAnimationFrame(frame);
+    else {
+      spinning = false; btn.disabled = false;
+      result.innerHTML = `Det ble <span style="color:${colors[winner]}">${winner + 1}</span>!`;
+      result.classList.remove("pop"); void result.offsetWidth; result.classList.add("pop");
+    }
+  }
+  requestAnimationFrame(frame);
+}
+btn.addEventListener("click", spin);
+wheel.addEventListener("click", spin);
+</script>
+</body>
+</html>
